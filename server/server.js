@@ -15,6 +15,15 @@ const io = new Server(server, {
 app.use(cors());
 app.use(express.static('public'));
 
+// Health check endpoint for Railway
+app.get('/', (req, res) => {
+  res.json({ status: 'Video Streaming Server is running!', timestamp: new Date().toISOString() });
+});
+
+app.get('/health', (req, res) => {
+  res.json({ status: 'healthy', uptime: process.uptime() });
+});
+
 let broadcaster = null;
 let viewers = new Set();
 
