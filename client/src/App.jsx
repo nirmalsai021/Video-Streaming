@@ -1,7 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import io from 'socket.io-client';
 
-const socket = io(import.meta.env.VITE_SERVER_URL || 'https://video-streaming-production-dbae.up.railway.app');
+const socket = io(import.meta.env.VITE_SERVER_URL || 'https://video-streaming-production-dbae.up.railway.app', {
+  transports: ['websocket', 'polling']
+});
+
+console.log('Connecting to server:', import.meta.env.VITE_SERVER_URL || 'https://video-streaming-production-dbae.up.railway.app');
 
 function App() {
   const [isBroadcaster, setIsBroadcaster] = useState(false);
@@ -14,11 +18,21 @@ function App() {
   useEffect(() => {
     let peerConnection = null;
 
+    socket.on('connect', () => {
+      console.log('Connected to server:', socket.id);
+    });
+
+    socket.on('disconnect', () => {
+      console.log('Disconnected from server');
+    });
+
     socket.on('broadcaster', () => {
+      console.log('Broadcaster detected');
       setIsStreaming(true);
     });
 
     socket.on('broadcaster-disconnected', () => {
+      console.log('Broadcaster disconnected');
       setIsStreaming(false);
       if (remoteVideoRef.current) {
         remoteVideoRef.current.srcObject = null;
@@ -112,6 +126,7 @@ function App() {
 
   const startBroadcast = async () => {
     try {
+      console.log('Starting broadcast...');
       const stream = await navigator.mediaDevices.getUserMedia({ 
         video: { width: 640, height: 480 }, 
         audio: true 
@@ -120,6 +135,7 @@ function App() {
       streamRef.current = stream;
       setIsBroadcaster(true);
       setIsStreaming(true);
+      console.log('Emitting broadcaster event');
       socket.emit('broadcaster');
       
     } catch (error) {
@@ -144,6 +160,7 @@ function App() {
   };
 
   const joinAsViewer = () => {
+    console.log('Joining as viewer...');
     setIsBroadcaster(false);
     socket.emit('watcher');
   };
