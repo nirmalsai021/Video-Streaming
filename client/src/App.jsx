@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import io from 'socket.io-client';
 
-const socket = io(import.meta.env.VITE_SERVER_URL || 'http://localhost:4000');
+const socket = io(import.meta.env.VITE_SERVER_URL || 'https://video-streaming-production-dbae.up.railway.app');
 
 function App() {
   const [isBroadcaster, setIsBroadcaster] = useState(false);
