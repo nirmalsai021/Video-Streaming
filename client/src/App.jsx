@@ -2,7 +2,11 @@ import React, { useState, useRef, useEffect } from 'react';
 import io from 'socket.io-client';
 
 const socket = io(import.meta.env.VITE_SERVER_URL || 'https://video-streaming-production-dbae.up.railway.app', {
-  transports: ['websocket', 'polling']
+  transports: ['websocket', 'polling'],
+  reconnection: true,
+  reconnectionDelay: 1000,
+  reconnectionAttempts: 5,
+  timeout: 20000
 });
 
 console.log('Connecting to server:', import.meta.env.VITE_SERVER_URL || 'https://video-streaming-production-dbae.up.railway.app');
@@ -17,6 +21,7 @@ function App() {
 
   useEffect(() => {
     let peerConnection = null;
+    let iceCandidateQueue = [];
 
     socket.on('connect', () => {
       console.log('Connected to server:', socket.id);
@@ -80,7 +85,8 @@ function App() {
         
         peerConnection.createOffer()
           .then(offer => peerConnection.setLocalDescription(offer))
-          .then(() => socket.emit('offer', id, peerConnection.localDescription));
+          .then(() => socket.emit('offer', id, peerConnection.localDescription))
+          .catch(err => console.log('Error creating offer:', err));
       }
     });
 
@@ -124,19 +130,46 @@ function App() {
         peerConnection.setRemoteDescription(offer)
           .then(() => peerConnection.createAnswer())
           .then(answer => peerConnection.setLocalDescription(answer))
-          .then(() => socket.emit('answer', id, peerConnection.localDescription));
+          .then(() => {
+            socket.emit('answer', id, peerConnection.localDescription);
+            // Process queued ICE candidates
+            iceCandidateQueue.forEach(candidate => {
+              peerConnection.addIceCandidate(candidate).catch(err => {
+                console.log('Error adding queued ICE candidate:', err);
+              });
+            });
+            iceCandidateQueue = [];
+          })
+          .catch(err => console.log('Error in offer handling:', err));
       }
     });
 
     socket.on('answer', (id, answer) => {
       if (peerConnection) {
-        peerConnection.setRemoteDescription(answer);
+        peerConnection.setRemoteDescription(answer)
+          .then(() => {
+            // Process queued ICE candidates
+            iceCandidateQueue.forEach(candidate => {
+              peerConnection.addIceCandidate(candidate).catch(err => {
+                console.log('Error adding queued ICE candidate:', err);
+              });
+            });
+            iceCandidateQueue = [];
+          })
+          .catch(err => console.log('Error setting remote description:', err));
       }
     });
 
     socket.on('candidate', (id, candidate) => {
       if (peerConnection) {
-        peerConnection.addIceCandidate(candidate);
+        if (peerConnection.remoteDescription) {
+          peerConnection.addIceCandidate(candidate).catch(err => {
+            console.log('Error adding ICE candidate:', err);
+          });
+        } else {
+          // Queue ICE candidates if remote description not set yet
+          iceCandidateQueue.push(candidate);
+        }
       }
     });
 
